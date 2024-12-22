@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -114,6 +115,8 @@ var PrecompiledContractsCancun = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 	common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},
+	// ZTODO: is 0xed acceptable, or is there a max value?
+	common.BytesToAddress([]byte{0xed}): &ed25519Verify{},
 }
 
 // PrecompiledContractsPrague contains the set of pre-compiled Ethereum
@@ -138,6 +141,7 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x11}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x12}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x13}): &bls12381MapG2{},
+	common.BytesToAddress([]byte{0xed}): &ed25519Verify{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
@@ -163,16 +167,18 @@ var PrecompiledContractsFjord = map[common.Address]PrecompiledContract{
 // PrecompiledContractsGranite contains the default set of pre-compiled Ethereum
 // contracts used in the Granite release.
 var PrecompiledContractsGranite = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}):          &ecrecover{},
-	common.BytesToAddress([]byte{2}):          &sha256hash{},
-	common.BytesToAddress([]byte{3}):          &ripemd160hash{},
-	common.BytesToAddress([]byte{4}):          &dataCopy{},
-	common.BytesToAddress([]byte{5}):          &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}):          &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}):          &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}):          &bn256PairingGranite{},
-	common.BytesToAddress([]byte{9}):          &blake2F{},
-	common.BytesToAddress([]byte{0x0a}):       &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{1}):    &ecrecover{},
+	common.BytesToAddress([]byte{2}):    &sha256hash{},
+	common.BytesToAddress([]byte{3}):    &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):    &dataCopy{},
+	common.BytesToAddress([]byte{5}):    &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):    &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):    &bn256PairingGranite{},
+	common.BytesToAddress([]byte{9}):    &blake2F{},
+	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+	// ZTODO: Confirm that Holocene will pull this automatically
+	common.BytesToAddress([]byte{0xed}):       &ed25519Verify{},
 	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
 
@@ -1352,4 +1358,35 @@ func (c *p256Verify) Run(input []byte) ([]byte, error) {
 		// Signature is invalid
 		return nil, nil
 	}
+}
+
+// ed25519Verify implements a native Ed25519 signature verification.
+type ed25519Verify struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *ed25519Verify) RequiredGas(input []byte) uint64 {
+	return params.Ed25519VerifyGas
+}
+
+// Run executes the precompiled contract with given 128 bytes of param, returning the output and the used gas
+func (c *ed25519Verify) Run(input []byte) ([]byte, error) {
+	// Required input length is 128 bytes
+	const ed25519VerifyInputLength = 128
+	// Check the input length
+	if len(input) != ed25519VerifyInputLength {
+		// Input length is invalid
+		return nil, nil
+	}
+
+	message := input[0:32]
+	publicKey := input[32:64]
+	sig := input[64:128]
+
+	// Verify the Ed25519 signature against the public key and message
+	// and return result
+	// https://godoc.org/golang.org/x/crypto/ed25519#Verify
+	if ed25519.Verify(publicKey, message, sig) {
+		return true32Byte, nil
+	}
+	return false32Byte, nil
 }

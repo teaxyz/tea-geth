@@ -19,11 +19,13 @@ package vm
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
 	"math/big"
 
+	pgpcrypto "github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/consensys/gnark-crypto/ecc"
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
@@ -114,6 +116,7 @@ var PrecompiledContractsCancun = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{0x9}): &blake2F{},
 	common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{0xed}): &gpgEd25519Verify{},
 }
 
 // PrecompiledContractsPrague contains the set of pre-compiled Ethereum
@@ -138,6 +141,7 @@ var PrecompiledContractsPrague = PrecompiledContracts{
 	common.BytesToAddress([]byte{0x11}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x12}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x13}): &bls12381MapG2{},
+	common.BytesToAddress([]byte{0xed}): &gpgEd25519Verify{},
 }
 
 var PrecompiledContractsBLS = PrecompiledContractsPrague
@@ -173,6 +177,7 @@ var PrecompiledContractsGranite = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):          &bn256PairingGranite{},
 	common.BytesToAddress([]byte{9}):          &blake2F{},
 	common.BytesToAddress([]byte{0x0a}):       &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{0xed}):       &gpgEd25519Verify{},
 	common.BytesToAddress([]byte{0x01, 0x00}): &p256Verify{},
 }
 
@@ -1352,4 +1357,92 @@ func (c *p256Verify) Run(input []byte) ([]byte, error) {
 		// Signature is invalid
 		return nil, nil
 	}
+}
+
+// gpgEd25519Verify implements native verification for ed25519 signatures produced via gpg
+type gpgEd25519Verify struct{}
+
+var (
+	errMessageTooShort    = errors.New("message too short")
+	errPubKeyTooShort     = errors.New("public key too short")
+	errSignatureTooShort  = errors.New("signature too short")
+	errInvalidPublicKey   = errors.New("invalid public key format")
+	errInvalidSignature   = errors.New("invalid signature format")
+	errVerificationFailed = errors.New("signature verification failed")
+)
+
+// RequiredGas returns the gas required to execute the pre-compiled contract
+func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
+	// You can adjust this value based on your needs
+	return params.GpgEd25519VerifyGas
+}
+
+// Run performs ed25519 signature verification
+func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
+	// Input should be: message_len (32 bytes) || message || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
+	if len(input) < 96 { // minimum length for the three length fields
+		return nil, errMessageTooShort
+	}
+
+	// Extract message length and message
+	msgLen := new(big.Int).SetBytes(input[:32]).Uint64()
+	if len(input) < 32+int(msgLen) {
+		return nil, errMessageTooShort
+	}
+	message := input[32 : 32+msgLen]
+
+	// Extract public key length and public key
+	offset := 32 + msgLen
+	pubKeyLen := new(big.Int).SetBytes(input[offset : offset+32]).Uint64()
+	if len(input) < int(offset+32+pubKeyLen) {
+		return nil, errPubKeyTooShort
+	}
+	pubKey := input[offset+32 : offset+32+pubKeyLen]
+
+	// Extract signature length and signature
+	offset = offset + 32 + pubKeyLen
+	sigLen := new(big.Int).SetBytes(input[offset : offset+32]).Uint64()
+	if len(input) < int(offset+32+sigLen) {
+		return nil, errSignatureTooShort
+	}
+	signature := input[offset+32 : offset+32+sigLen]
+
+	// Convert raw bytes to armored format
+	armoredPubKey := string(pubKey)
+	armoredSig := string(signature)
+
+	// Create public key object
+	pubKeyObj, err := pgpcrypto.NewKeyFromArmored(armoredPubKey)
+	if err != nil {
+		return nil, errInvalidPublicKey
+	}
+
+	// Create public keyring
+	pubKeyRing, err := pgpcrypto.NewKeyRing(pubKeyObj)
+	if err != nil {
+		return nil, errInvalidPublicKey
+	}
+
+	// Parse the armored signature
+	signatureObj, err := pgpcrypto.NewPGPSignatureFromArmored(armoredSig)
+	if err != nil {
+		return nil, errInvalidSignature
+	}
+
+	// Create message object
+	messageHex := hex.EncodeToString(message)
+	messageBytes, err := hex.DecodeString(messageHex)
+	if err != nil {
+		return nil, err
+	}
+	messageObj := pgpcrypto.NewPlainMessage(messageBytes)
+
+	// Verify signature
+	err = pubKeyRing.VerifyDetached(messageObj, signatureObj, pgpcrypto.GetUnixTime())
+	if err != nil {
+		return nil, errVerificationFailed
+	}
+
+	// Return 32 bytes: 1 for success, 0 for failure
+	return []byte{1}, nil
 }

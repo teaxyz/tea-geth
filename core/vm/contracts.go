@@ -1378,6 +1378,7 @@ func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
 }
 
 // Run performs ed25519 signature verification
+// Q_TODO: Enforce max message size?
 func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	// Input should be: message_len (32 bytes) || message || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
 	if len(input) < 96 { // minimum length for the three length fields
@@ -1444,5 +1445,5 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	}
 
 	// Return 32 bytes: 1 for success, 0 for failure
-	return []byte{1}, nil
+	return common.LeftPadBytes([]byte{1}, 32), nil
 }

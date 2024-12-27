@@ -1362,10 +1362,7 @@ func (c *p256Verify) Run(input []byte) ([]byte, error) {
 type gpgEd25519Verify struct{}
 
 var (
-	errMessageTooShort    = errors.New("message too short")
-	errMessageTooLong    = errors.New("message too long")
-	errPubKeyTooShort     = errors.New("public key too short")
-	errSignatureTooShort  = errors.New("signature too short")
+	errInputTooShort    = errors.New("input too short")
 	errInvalidPublicKey   = errors.New("invalid public key")
 )
 
@@ -1377,30 +1374,26 @@ func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
 
 // Run performs ed25519 signature verification
 func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
-	// Input should be: message_len (32 bytes) || message || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
-	if len(input) < 96 { // minimum length for the three length fields
-		return nil, errMessageTooShort
+	// Input should be: message (32 bytes) || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
+
+	// Extract message
+	msgLen := 32
+	if len(input) < msgLen {
+		return nil, errInputTooShort
 	}
 
-	// Extract message length and message
-	msgLen := new(big.Int).SetBytes(input[:32]).Uint64()
-	if len(input) < 32+int(msgLen) {
-		return nil, errMessageTooShort
-	}
-
-	// Limit message size to 32 bytes
-	if(msgLen > 32) {
-		return nil, errMessageTooLong
-	}
-	
-	message := input[32 : 32+msgLen]
+	message := input[:msgLen]
 	messageObj := pgpcrypto.NewPlainMessage(message)
 
 	// Extract public key length and public key
-	offset := 32 + msgLen
-	pubKeyLen := new(big.Int).SetBytes(input[offset : offset+32]).Uint64()
+	offset := msgLen
+	if len(input) < offset + 32 {
+		return nil, errInputTooShort
+	}
+	
+	pubKeyLen := int(new(big.Int).SetBytes(input[offset : offset+32]).Uint64())
 	if len(input) < int(offset+32+pubKeyLen) {
-		return nil, errPubKeyTooShort
+		return nil, errInputTooShort
 	}
 	pubKey := input[offset+32 : offset+32+pubKeyLen]
 
@@ -1418,11 +1411,17 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 
 	// Extract signature length and signature
 	offset = offset + 32 + pubKeyLen
-	sigLen := new(big.Int).SetBytes(input[offset : offset+32]).Uint64()
+	if len(input) < offset + 32 {
+		return nil, errInputTooShort
+	}
+
+	sigLen := int(new(big.Int).SetBytes(input[offset : offset+32]).Uint64())
 	if len(input) < int(offset+32+sigLen) {
-		return nil, errSignatureTooShort
+		return nil, errInputTooShort
 	}
 	signature := input[offset+32 : offset+32+sigLen]
+
+	// Create signature object
 	signatureObj := pgpcrypto.NewPGPSignature(signature)
 
 	// Verify signature

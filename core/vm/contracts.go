@@ -1363,6 +1363,7 @@ type gpgEd25519Verify struct{}
 
 var (
 	errMessageTooShort    = errors.New("message too short")
+	errMessageTooLong    = errors.New("message too long")
 	errPubKeyTooShort     = errors.New("public key too short")
 	errSignatureTooShort  = errors.New("signature too short")
 	errInvalidPublicKey   = errors.New("invalid public key")
@@ -1375,7 +1376,6 @@ func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
 }
 
 // Run performs ed25519 signature verification
-// Q_TODO: Enforce max message size?
 func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	// Input should be: message_len (32 bytes) || message || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
 	if len(input) < 96 { // minimum length for the three length fields
@@ -1387,6 +1387,12 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	if len(input) < 32+int(msgLen) {
 		return nil, errMessageTooShort
 	}
+
+	// Limit message size to 32 bytes
+	if(msgLen > 32) {
+		return nil, errMessageTooLong
+	}
+	
 	message := input[32 : 32+msgLen]
 	messageObj := pgpcrypto.NewPlainMessage(message)
 

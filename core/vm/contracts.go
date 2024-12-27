@@ -1368,7 +1368,6 @@ var (
 	errSignatureTooShort  = errors.New("signature too short")
 	errInvalidPublicKey   = errors.New("invalid public key format")
 	errInvalidSignature   = errors.New("invalid signature format")
-	errVerificationFailed = errors.New("signature verification failed")
 )
 
 // RequiredGas returns the gas required to execute the pre-compiled contract
@@ -1441,9 +1440,10 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	// Verify signature
 	err = pubKeyRing.VerifyDetached(messageObj, signatureObj, pgpcrypto.GetUnixTime())
 	if err != nil {
-		return nil, errVerificationFailed
+		// Return 32 bytes: 0 for failure
+		return common.LeftPadBytes([]byte{0}, 32), nil
 	}
 
-	// Return 32 bytes: 1 for success, 0 for failure
+	// Return 32 bytes: 1 for success
 	return common.LeftPadBytes([]byte{1}, 32), nil
 }

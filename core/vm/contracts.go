@@ -1438,7 +1438,7 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	messageObj := pgpcrypto.NewPlainMessage(messageBytes)
 
 	// Verify signature
-	err = pubKeyRing.VerifyDetached(messageObj, signatureObj, pgpcrypto.GetUnixTime())
+	err = pubKeyRing.VerifyDetached(messageObj, signatureObj, 0)
 	if err != nil {
 		// Return 32 bytes: 0 for failure
 		return common.LeftPadBytes([]byte{0}, 32), nil

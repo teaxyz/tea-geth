@@ -106,16 +106,16 @@ var PrecompiledContractsBerlin = PrecompiledContracts{
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
 // contracts used in the Cancun release.
 var PrecompiledContractsCancun = PrecompiledContracts{
-	common.BytesToAddress([]byte{0x1}): &ecrecover{},
-	common.BytesToAddress([]byte{0x2}): &sha256hash{},
-	common.BytesToAddress([]byte{0x3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{0x4}): &dataCopy{},
-	common.BytesToAddress([]byte{0x5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{0x6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{0x7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{0x8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{0x9}): &blake2F{},
-	common.BytesToAddress([]byte{0xa}): &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{0x1}):  &ecrecover{},
+	common.BytesToAddress([]byte{0x2}):  &sha256hash{},
+	common.BytesToAddress([]byte{0x3}):  &ripemd160hash{},
+	common.BytesToAddress([]byte{0x4}):  &dataCopy{},
+	common.BytesToAddress([]byte{0x5}):  &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{0x6}):  &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{0x7}):  &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{0x8}):  &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{0x9}):  &blake2F{},
+	common.BytesToAddress([]byte{0xa}):  &kzgPointEvaluation{},
 	common.BytesToAddress([]byte{0xed}): &gpgEd25519Verify{},
 }
 
@@ -1363,8 +1363,8 @@ func (c *p256Verify) Run(input []byte) ([]byte, error) {
 type gpgEd25519Verify struct{}
 
 var (
-	errDecodingFailed    = errors.New("failed to decode input")
-	errInvalidPublicKey   = errors.New("invalid public key")
+	errDecodingFailed   = errors.New("failed to decode input")
+	errInvalidPublicKey = errors.New("invalid public key")
 )
 
 // RequiredGas returns the gas required to execute the pre-compiled contract
@@ -1376,54 +1376,7 @@ func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
 // Run performs ed25519 signature verification
 func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	// Input should be: abi.encode(bytes32 message, bytes publicKey, bytes signature)
-	
-	decode := func(encodedInput []byte) ([32]byte, []byte, []byte, error) {
-		// Define ABI types
-		bytesType, err := abi.NewType("bytes", "", nil)
-		if err != nil {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to create bytes type: %v", err)
-		}
-		bytes32Type, err := abi.NewType("bytes32", "", nil)
-		if err != nil {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to create bytes32 type: %v", err)
-		}
-
-		// Create ABI arguments
-		arguments := abi.Arguments{
-			{Type: bytes32Type},
-			{Type: bytesType},
-			{Type: bytesType},
-		}
-
-		// Unpack the encoded data
-		unpacked, err := arguments.Unpack(encodedInput)
-		if err != nil {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to unpack data: %v", err)
-		}
-
-		// Ensure we have the correct number of elements
-		if len(unpacked) != 3 {
-			return [32]byte{}, nil, nil, fmt.Errorf("unexpected number of decoded arguments: got %d, want 3", len(unpacked))
-		}
-
-		// Extract each value
-		message, ok := unpacked[0].([32]byte)
-		if !ok {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to cast message to [32]byte")
-		}
-		publicKey, ok := unpacked[1].([]byte)
-		if !ok {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to cast publicKey to []byte")
-		}
-		signature, ok := unpacked[2].([]byte)
-		if !ok {
-			return [32]byte{}, nil, nil, fmt.Errorf("failed to cast signature to []byte")
-		}
-
-		return message, publicKey, signature, nil
-	}
-
-	message, pubKey, signature, err := decode(input)
+	message, pubKey, signature, err := decodeGPGEd25519VerifyInput(input)
 	if err != nil {
 		return nil, errDecodingFailed
 	}
@@ -1455,4 +1408,50 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 
 	// Return 32 bytes: 1 for success
 	return common.LeftPadBytes([]byte{1}, 32), nil
+}
+
+func decodeGPGEd25519VerifyInput(input []byte) ([32]byte, []byte, []byte, error) {
+	// Define ABI types
+	bytesType, err := abi.NewType("bytes", "", nil)
+	if err != nil {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to create bytes type: %v", err)
+	}
+	bytes32Type, err := abi.NewType("bytes32", "", nil)
+	if err != nil {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to create bytes32 type: %v", err)
+	}
+
+	// Create ABI arguments
+	arguments := abi.Arguments{
+		{Type: bytes32Type},
+		{Type: bytesType},
+		{Type: bytesType},
+	}
+
+	// Unpack the encoded data
+	unpacked, err := arguments.Unpack(input)
+	if err != nil {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to unpack data: %v", err)
+	}
+
+	// Ensure we have the correct number of elements
+	if len(unpacked) != 3 {
+		return [32]byte{}, nil, nil, fmt.Errorf("unexpected number of decoded arguments: got %d, want 3", len(unpacked))
+	}
+
+	// Extract each value
+	message, ok := unpacked[0].([32]byte)
+	if !ok {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to cast message to [32]byte")
+	}
+	publicKey, ok := unpacked[1].([]byte)
+	if !ok {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to cast publicKey to []byte")
+	}
+	signature, ok := unpacked[2].([]byte)
+	if !ok {
+		return [32]byte{}, nil, nil, fmt.Errorf("failed to cast signature to []byte")
+	}
+
+	return message, publicKey, signature, nil
 }

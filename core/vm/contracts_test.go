@@ -439,12 +439,12 @@ func BenchmarkPrecompiledGpgEd25519Verify(b *testing.B) {
 var gpgEd25519MalformedInputTests = []precompiledFailureTest{
     {
         Input:         "",
-        ExpectedError: "input too short",
+        ExpectedError: "failed to decode input",
         Name:          "empty input",
     },
 	{
         Input:         "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000024",
-        ExpectedError: "input too short",
+        ExpectedError: "failed to decode input",
         Name:          "input less than 96 bytes",
     },
     {

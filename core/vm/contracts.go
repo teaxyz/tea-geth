@@ -1374,28 +1374,28 @@ func (c *gpgEd25519Verify) RequiredGas(input []byte) uint64 {
 
 // Run performs ed25519 signature verification
 func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
-	// Input should be: message (32 bytes) || pubkey_len (32 bytes) || pubkey || sig_len (32 bytes) || signature
+	// Input should be: abi.encode(bytes32 message, bytes publicKey, bytes signature)
 
-	// Extract message
-	msgLen := 32
-	if len(input) < msgLen {
+	if len(input) < 96 { // 32 bytes (message) + 32 bytes (publicKey offset) + 32 bytes (signature offset)
 		return nil, errInputTooShort
 	}
 
-	message := input[:msgLen]
+	// Extract message
+	message := input[:32]
 	messageObj := pgpcrypto.NewPlainMessage(message)
 
 	// Extract public key length and public key
-	offset := msgLen
-	if len(input) < offset + 32 {
+	publicKeyOffset := int(new(big.Int).SetBytes(input[32 : 64]).Uint64())
+	if len(input) < publicKeyOffset { 
 		return nil, errInputTooShort
 	}
-	
-	pubKeyLen := int(new(big.Int).SetBytes(input[offset : offset+32]).Uint64())
-	if len(input) < int(offset+32+pubKeyLen) {
+
+	pubKeyLen := int(new(big.Int).SetBytes(input[publicKeyOffset : publicKeyOffset+32]).Uint64())
+	if len(input) < int(publicKeyOffset+32+pubKeyLen) {
 		return nil, errInputTooShort
 	}
-	pubKey := input[offset+32 : offset+32+pubKeyLen]
+
+	pubKey := input[publicKeyOffset+32 : publicKeyOffset+32+pubKeyLen]
 
 	// Create public key object
 	pubKeyObj, err := pgpcrypto.NewKey(pubKey)
@@ -1410,16 +1410,17 @@ func (c *gpgEd25519Verify) Run(input []byte) ([]byte, error) {
 	}
 
 	// Extract signature length and signature
-	offset = offset + 32 + pubKeyLen
-	if len(input) < offset + 32 {
+	signatureOffset := int(new(big.Int).SetBytes(input[64:96]).Uint64())
+	if len(input) < signatureOffset { 
 		return nil, errInputTooShort
 	}
 
-	sigLen := int(new(big.Int).SetBytes(input[offset : offset+32]).Uint64())
-	if len(input) < int(offset+32+sigLen) {
+	sigLen := int(new(big.Int).SetBytes(input[signatureOffset : signatureOffset+32]).Uint64())
+	if len(input) < int(signatureOffset+32+sigLen) {
 		return nil, errInputTooShort
 	}
-	signature := input[offset+32 : offset+32+sigLen]
+
+	signature := input[signatureOffset+32 : signatureOffset+32+sigLen]
 
 	// Create signature object
 	signatureObj := pgpcrypto.NewPGPSignature(signature)

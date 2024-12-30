@@ -170,7 +170,7 @@ const (
 	Bls12381MapG2Gas          uint64 = 75000 // Gas price for BLS12-381 mapping field element to G2 operation
 
 	P256VerifyGas uint64 = 3450 // secp256r1 elliptic curve signature verifier gas price
-	GpgEd25519VerifyGas uint64 = 2000 // GPG Ed25519 signature verification gas price
+	GpgEd25519VerifyGas uint64 = 7900 // GPG Ed25519 signature verification gas price
 
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529

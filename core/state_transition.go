@@ -255,6 +255,21 @@ func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
 	mgval.Mul(mgval, st.msg.GasPrice)
 	var l1Cost *big.Int
+	// TODO: This should be updated to Tea, or Isthmus if we merge into OP Mainnet.
+	if st.evm.ChainConfig().IsOptimismHolocene(st.evm.Context.Time) {
+		ZeroAddr := vm.AccountRef(common.HexToAddress("0x0000000000000000000000000000000000000000"))
+		L1BlockAddr := common.HexToAddress("0x4200000000000000000000000000000000000015")
+		GetL1DataCostSelector := []byte{0x01, 0x5d, 0x8e, 0xb9}
+		FixedCallGas := uint64(30_000)
+		returnBytes, _, vmerr := st.evm.StaticCall(ZeroAddr, L1BlockAddr, GetL1DataCostSelector, FixedCallGas)
+		if vmerr != nil {
+			return vmerr
+		}
+		if returnBytes != nil {
+			l1Cost.SetBytes(returnBytes)
+			mgval = mgval.Add(mgval, l1Cost)
+		}
+	}
 	if st.evm.Context.L1CostFunc != nil && !st.msg.SkipNonceChecks && !st.msg.SkipFromEOACheck {
 		l1Cost = st.evm.Context.L1CostFunc(st.msg.RollupCostData, st.evm.Context.Time)
 		if l1Cost != nil {

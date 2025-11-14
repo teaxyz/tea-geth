@@ -181,6 +181,25 @@ const (
 	P256VerifyGasFjord uint64 = 3450 // secp256r1 elliptic curve signature verifier gas price (RIP-7212 value)
 	P256VerifyGas      uint64 = 6900 // secp256r1 elliptic curve signature verifier gas price
 
+	// BLAKE2 precompile EIP (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-152.md) uses
+	// ecrecover as a benchmark, which uses 19.6546 MGas / second.
+
+	// Some benchmarks at various lengths:
+	// - ED25519 (simple): 768 bytes = 125252 ns/op = 7984 / second
+	// - RSA (simple): 3040 bytes = 469125 ns/op = 2131 / second
+	// - RSA (complex): 9504 bytes = 1578820 ns/op = 633 / second
+
+	// For safety, we'll aim for a minimum of 50 MGas / second, which means:
+	// - ED25519 (simple) = 6263 gas
+	// - RSA (simple) = 23463 gas
+	// - RSA (complex) = 78988 gas
+
+	// Up to a length of 3264 (reasonable bound), we'll charge based on the simple RSA benchmark.
+	// Above that, we'll scale up at double the rate of the benchmarks above.
+	GpgVerifyInputLengthKink        = 3264
+	GpgVerifyBaseGas         uint64 = 23500 // GPG signature verification gas price
+	GpgVerifyGasPerByte      uint64 = 16    // GPG signature verification gas price per byte over kink
+
 	Bls12381G1MulMaxInputSizeIsthmus   uint64 = 513760 // Maximum input size for BLS12-381 G1 multiple-scalar-multiply operation
 	Bls12381G2MulMaxInputSizeIsthmus   uint64 = 488448 // Maximum input size for BLS12-381 G2 multiple-scalar-multiply operation
 	Bls12381PairingMaxInputSizeIsthmus uint64 = 235008 // Maximum input size for BLS12-381 pairing check

@@ -71,6 +71,13 @@ var (
 	OverheadSlot  = common.BigToHash(big.NewInt(5))
 	ScalarSlot    = common.BigToHash(big.NewInt(6))
 
+	// GasPriceOracleAddr is the address of the GasPriceOracle contract which holds the exchange rate.
+	GasPriceOracleAddr = common.HexToAddress("0x420000000000000000000000000000000000000F")
+	// cast keccak "tea.customgastoken.price" - 1
+	LatestPriceRatioSlot = common.HexToHash("0xd0dd2c45a47f8f6c6a17d45eff20f1e85e013b0244793169bca59b0cad5e4e87")
+	// Hardcoded backup, should only be used before first System TX, or in the event that the oracle fallback fails.
+	BackupTeaPerEth = big.NewInt(1_500_000)
+
 	// L1BlobBaseFeeSlot was added with the Ecotone upgrade and stores the blobBaseFee L1 gas
 	// attribute.
 	L1BlobBaseFeeSlot = common.BigToHash(big.NewInt(7))
@@ -87,6 +94,7 @@ var (
 	oneMillion     = big.NewInt(1_000_000)
 	ecotoneDivisor = big.NewInt(1_000_000 * 16)
 	fjordDivisor   = big.NewInt(1_000_000_000_000)
+	Wad            = big.NewInt(1_000_000_000_000_000_000)
 	sixteen        = big.NewInt(16)
 
 	L1CostIntercept  = big.NewInt(-42_585_600)
@@ -179,6 +187,23 @@ func NewL1CostFunc(config *params.ChainConfig, statedb StateGetter) L1CostFunc {
 		}
 
 		l1BaseFeeScalar, l1BlobBaseFeeScalar := ExtractEcotoneFeeParams(l1FeeScalars)
+
+		if config.IsTea() {
+			latestPriceRatioSlotBytes := statedb.GetState(GasPriceOracleAddr, LatestPriceRatioSlot)
+			teaPerWadEth := new(big.Int).SetBytes(latestPriceRatioSlotBytes[12:])
+			if teaPerWadEth == nil || teaPerWadEth.Cmp(common.Big0) == 0 {
+				log.Info("using backup price due to invalid storage value", "cachedValue", teaPerWadEth)
+				teaPerWadEth = new(big.Int).Mul(BackupTeaPerEth, Wad)
+			}
+			log.Info("using tea l1 cost func", "time", blockTime, "teaPerWadEth", teaPerWadEth)
+			return NewL1CostFuncTea(
+				l1BaseFee,
+				l1BlobBaseFee,
+				l1BaseFeeScalar,
+				l1BlobBaseFeeScalar,
+				teaPerWadEth,
+			)
+		}
 
 		if config.IsOptimismFjord(blockTime) {
 			return NewL1CostFuncFjord(
@@ -345,6 +370,17 @@ func newL1CostFuncEcotone(l1BaseFee, l1BlobBaseFee, l1BaseFeeScalar, l1BlobBaseF
 		fee = fee.Div(fee, ecotoneDivisor)
 
 		return fee, calldataGasUsed
+	}
+}
+
+// NewL1CostFuncTea returns an l1 cost function suitable for the Fjord upgrade, priced in $TEA
+func NewL1CostFuncTea(l1BaseFee, l1BlobBaseFee, baseFeeScalar, blobFeeScalar, teaPerWadEth *big.Int) l1CostFunc {
+	fjordCostFunc := NewL1CostFuncFjord(l1BaseFee, l1BlobBaseFee, baseFeeScalar, blobFeeScalar)
+	return func(costData RollupCostData) (fee, calldataGasUsed *big.Int) {
+		l1Cost, calldataGasUsed := fjordCostFunc(costData)
+		l1Cost.Mul(l1Cost, teaPerWadEth)
+		l1Cost.Div(l1Cost, Wad)
+		return l1Cost, calldataGasUsed
 	}
 }
 

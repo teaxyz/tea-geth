@@ -74,7 +74,7 @@ var (
 	// GasPriceOracleAddr is the address of the GasPriceOracle contract which holds the exchange rate.
 	GasPriceOracleAddr = common.HexToAddress("0x420000000000000000000000000000000000000F")
 	// cast keccak "tea.customgastoken.price" - 1
-	LatestPriceRatioSlot = common.HexToHash("0xd0dd2c45a47f8f6c6a17d45eff20f1e85e013b0244793169bca59b0cad5e4e87")
+	LatestPriceRatioSlot = common.HexToHash("0xd0dd2c45a47f8f6c6a17d45eff20f1e85e013b0244793169bca59b0cad5e4e86")
 	// Hardcoded backup, should only be used before first System TX, or in the event that the oracle fallback fails.
 	BackupTeaPerEth = big.NewInt(1_500_000)
 

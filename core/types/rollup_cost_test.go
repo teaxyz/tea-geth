@@ -39,6 +39,10 @@ var (
 	regolithGas     = big.NewInt(530) // 530  = 1618 - (16*68)
 	ecotoneGas      = big.NewInt(480)
 	minimumFjordGas = big.NewInt(1600) // fastlz size of minimum txn, 100_000_000 * 16 / 1e6
+
+	// timestamp: 1737693476, price ratio: 999e18
+	examplePriceRatio   = common.HexToHash("0x00000000000000006793192400000000000000000000003627e8f712373c0000")
+	priceRatioInExample = big.NewInt(999)
 )
 
 func TestBedrockL1CostFunc(t *testing.T) {
@@ -567,4 +571,64 @@ func TestTotalRollupCostFunc(t *testing.T) {
 	expCost = uint256.MustFromBig(fjordFee)
 	expCost.Add(expCost, jovianOperatorFee)
 	require.Equal(t, expCost, cost, "Jovian total rollup cost should contain L1 cost and Jovian operator cost")
+}
+
+// TEA tests
+func TestTeaL1CostFuncWithBackup(t *testing.T) {
+	fjordCostFunc := NewL1CostFuncFjord(
+		baseFee,
+		blobBaseFee,
+		baseFeeScalar,
+		blobBaseFeeScalar,
+	)
+	backupExchangeRateE18 := new(big.Int).Mul(BackupTeaPerEth, Wad)
+	teaCostFunc := NewL1CostFuncTea(
+		baseFee,
+		blobBaseFee,
+		baseFeeScalar,
+		blobBaseFeeScalar,
+		backupExchangeRateE18,
+	)
+
+	fjord_cost, fjord_gas := fjordCostFunc(rightvrsTx.RollupCostData())
+	tea_cost, tea_gas := teaCostFunc(rightvrsTx.RollupCostData())
+
+	require.Equal(t, tea_cost, new(big.Int).Mul(fjord_cost, BackupTeaPerEth))
+	require.Equal(t, fjord_gas, tea_gas)
+}
+
+func TestTeaL1CostFuncWithStorageRead(t *testing.T) {
+	fjordCostFunc := NewL1CostFuncFjord(
+		baseFee,
+		blobBaseFee,
+		baseFeeScalar,
+		blobBaseFeeScalar,
+	)
+	teaPerWadEth := new(big.Int).SetBytes(examplePriceRatio[12:])
+	teaCostFunc := NewL1CostFuncTea(
+		baseFee,
+		blobBaseFee,
+		baseFeeScalar,
+		blobBaseFeeScalar,
+		teaPerWadEth,
+	)
+
+	fjord_cost, fjord_gas := fjordCostFunc(rightvrsTx.RollupCostData())
+	tea_cost, tea_gas := teaCostFunc(rightvrsTx.RollupCostData())
+
+	require.Equal(t, tea_cost, new(big.Int).Mul(fjord_cost, priceRatioInExample))
+	require.Equal(t, fjord_gas, tea_gas)
+}
+
+func TestEstimateDASize(t *testing.T) {
+	sampleTx := NewTransaction(
+		1,
+		testAddr,
+		big.NewInt(0),
+		50_000,
+		big.NewInt(1),
+		common.FromHex("1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac81c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac81c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac81c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8"),
+	)
+	estimatedSize := sampleTx.RollupCostData().estimatedDASizeScaled()
+	require.Equal(t, big.NewInt(100_000_000), estimatedSize)
 }

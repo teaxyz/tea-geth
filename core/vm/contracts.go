@@ -31,8 +31,8 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	patched_big "github.com/ethereum/go-bigmodexpfix/src/math/big"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/bitutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -1799,8 +1799,18 @@ func (c *gpgVerify) Run(input []byte) ([]byte, error) {
 		return nil, errInvalidPublicKey
 	}
 
-	if pubKeyObj.GetKeyID() != binary.BigEndian.Uint64(keyId[:]) {
-		return nil, errInvalidKeyId
+	expectedKeyId := binary.BigEndian.Uint64(keyId[:])
+	if pubKeyObj.GetKeyID() != expectedKeyId {
+		isSubkey := false
+		for _, key := range pubKeyObj.GetEntity().Subkeys {
+			if key.PublicKey.KeyId == expectedKeyId {
+				isSubkey = true
+				break
+			}
+		}
+		if !isSubkey {
+			return nil, errInvalidPublicKey
+		}
 	}
 
 	// Create public keyring

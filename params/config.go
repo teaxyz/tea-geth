@@ -931,10 +931,10 @@ func (c *ChainConfig) IsTea() bool {
 	if c.ChainID == nil {
 		return false
 	}
-	return c.ChainID.Cmp(big.NewInt(TeaChainID)) == 0 ||
-		c.ChainID.Cmp(big.NewInt(TeaTestnet1ChainID)) == 0 ||
-		c.ChainID.Cmp(big.NewInt(TeaTestnet2ChainID)) == 0 ||
-		c.ChainID.Cmp(big.NewInt(NethermindTeaTestNetworkID)) == 0
+	return c.ChainID.Int64() == TeaChainID ||
+		c.ChainID.Int64() == TeaTestnet1ChainID ||
+		c.ChainID.Int64() == TeaTestnet2ChainID ||
+		c.ChainID.Int64() == NethermindTeaTestNetworkID
 }
 
 // IsOptimismBedrock returns true iff this is an optimism node & bedrock is active

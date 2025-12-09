@@ -191,7 +191,7 @@ func NewL1CostFunc(config *params.ChainConfig, statedb StateGetter) L1CostFunc {
 		if config.IsTea() {
 			latestPriceRatioSlotBytes := statedb.GetState(GasPriceOracleAddr, LatestPriceRatioSlot)
 			teaPerWadEth := new(big.Int).SetBytes(latestPriceRatioSlotBytes[12:])
-			if teaPerWadEth == nil || teaPerWadEth.Cmp(common.Big0) == 0 {
+			if teaPerWadEth.Cmp(common.Big0) == 0 {
 				log.Info("using backup price due to invalid storage value", "cachedValue", teaPerWadEth)
 				teaPerWadEth = new(big.Int).Mul(BackupTeaPerEth, Wad)
 			}

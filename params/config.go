@@ -36,9 +36,13 @@ var (
 )
 
 const (
-	OPMainnetChainID   = 10
-	BaseMainnetChainID = 8453
-	baseSepoliaChainID = 84532
+	OPMainnetChainID           = 10
+	BaseMainnetChainID         = 8453
+	baseSepoliaChainID         = 84532
+	TeaChainID                 = 6122
+	TeaTestnet1ChainID         = 10218
+	TeaTestnet2ChainID         = 14314
+	NethermindTeaTestNetworkID = 3257160925
 )
 
 func newUint64(val uint64) *uint64 { return &val }
@@ -922,6 +926,17 @@ func (c *ChainConfig) IsOptimism() bool {
 	return c.Optimism != nil
 }
 
+// IsTea returns whether we are currently on the Tea network.
+func (c *ChainConfig) IsTea() bool {
+	if c.ChainID == nil {
+		return false
+	}
+	return c.ChainID.Int64() == TeaChainID ||
+		c.ChainID.Int64() == TeaTestnet1ChainID ||
+		c.ChainID.Int64() == TeaTestnet2ChainID ||
+		c.ChainID.Int64() == NethermindTeaTestNetworkID
+}
+
 // IsOptimismBedrock returns true iff this is an optimism node & bedrock is active
 func (c *ChainConfig) IsOptimismBedrock(num *big.Int) bool {
 	return c.IsOptimism() && c.IsBedrock(num)
@@ -1515,6 +1530,7 @@ type Rules struct {
 	IsOptimismCanyon, IsOptimismFjord                       bool
 	IsOptimismGranite, IsOptimismHolocene                   bool
 	IsOptimismIsthmus, IsOptimismJovian                     bool
+	IsTea                                                   bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1555,6 +1571,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsOptimismHolocene: isMerge && c.IsOptimismHolocene(timestamp),
 		IsOptimismIsthmus:  isMerge && c.IsOptimismIsthmus(timestamp),
 		IsOptimismJovian:   isMerge && c.IsOptimismJovian(timestamp),
+		// Tea
+		IsTea: c.IsTea(),
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"testing"
 
@@ -497,4 +498,92 @@ func TestRoundTripReceiptForStorage(t *testing.T) {
 			require.Equal(t, test.rcpt.DepositReceiptVersion, d.DepositReceiptVersion)
 		})
 	}
+}
+
+func TestParseLegacyReceiptRLP(t *testing.T) {
+	// Create a gasUsed value greater than a uint64 can represent
+	gasUsed := big.NewInt(0)
+	gasUsed = gasUsed.SetUint64(math.MaxUint64)
+	gasUsed = gasUsed.Add(gasUsed, big.NewInt(math.MaxInt64))
+	sanityCheck := (&big.Int{}).SetUint64(gasUsed.Uint64())
+	require.NotEqual(t, gasUsed, sanityCheck)
+	receipt := LegacyOptimismStoredReceiptRLP{
+		CumulativeGasUsed: 1,
+		Logs: []*LogForStorage{
+			{Address: common.BytesToAddress([]byte{0x11})},
+			{Address: common.BytesToAddress([]byte{0x01, 0x11})},
+		},
+		L1GasUsed:  gasUsed,
+		L1GasPrice: gasUsed,
+		L1Fee:      gasUsed,
+		FeeScalar:  "6",
+	}
+
+	data, err := rlp.EncodeToBytes(receipt)
+	require.NoError(t, err)
+	var result ReceiptForStorage
+	err = rlp.DecodeBytes(data, &result)
+	require.NoError(t, err)
+	require.Equal(t, receipt.L1GasUsed, result.L1GasUsed)
+	require.Equal(t, receipt.L1GasPrice, result.L1GasPrice)
+	require.Equal(t, receipt.L1Fee, result.L1Fee)
+	feeScalarFloat, ok := new(big.Float).SetString(receipt.FeeScalar)
+	require.True(t, ok)
+	require.Equal(t, feeScalarFloat, result.FeeScalar)
+}
+
+// legacyStoredReceiptWithLogs matches LegacyOptimismStoredReceiptRLP but uses legacyRlpStorageLog
+// instead of LogForStorage as the element type in the Logs slice.
+type legacyStoredReceiptWithLogs struct {
+	PostStateOrStatus []byte
+	CumulativeGasUsed uint64
+	Logs              []*legacyRlpStorageLog
+	L1GasUsed         *big.Int
+	L1GasPrice        *big.Int
+	L1Fee             *big.Int
+	FeeScalar         string
+}
+
+// TestParseLegacyReceiptRLPWithLegacyLogs is almost identical to TestParseLegacyReceiptRLP except
+// that the legacy receipt format is tested as well.
+func TestParseLegacyReceiptRLPWithLegacyLogs(t *testing.T) {
+	// Create a gasUsed value greater than a uint64 can represent
+	gasUsed := big.NewInt(0)
+	gasUsed = gasUsed.SetUint64(math.MaxUint64)
+	gasUsed = gasUsed.Add(gasUsed, big.NewInt(math.MaxInt64))
+	sanityCheck := (&big.Int{}).SetUint64(gasUsed.Uint64())
+	require.NotEqual(t, gasUsed, sanityCheck)
+	receipt := legacyStoredReceiptWithLogs{
+		CumulativeGasUsed: 1,
+		Logs: []*legacyRlpStorageLog{
+			{Address: common.BytesToAddress([]byte{0x11})},
+			{Address: common.BytesToAddress([]byte{0x01, 0x11})},
+			{
+				Address:     common.BytesToAddress([]byte{0x01, 0x11}),
+				Topics:      []common.Hash{{0x01}},
+				Data:        []byte{0x01},
+				BlockNumber: 10,
+				TxHash:      common.Hash{0x01},
+				TxIndex:     3,
+				BlockHash:   common.Hash{0x02},
+				Index:       1,
+			},
+		},
+		L1GasUsed:  gasUsed,
+		L1GasPrice: gasUsed,
+		L1Fee:      gasUsed,
+		FeeScalar:  "6",
+	}
+
+	data, err := rlp.EncodeToBytes(receipt)
+	require.NoError(t, err)
+	var result ReceiptForStorage
+	err = rlp.DecodeBytes(data, &result)
+	require.NoError(t, err)
+	require.Equal(t, receipt.L1GasUsed, result.L1GasUsed)
+	require.Equal(t, receipt.L1GasPrice, result.L1GasPrice)
+	require.Equal(t, receipt.L1Fee, result.L1Fee)
+	feeScalarFloat, ok := new(big.Float).SetString(receipt.FeeScalar)
+	require.True(t, ok)
+	require.Equal(t, feeScalarFloat, result.FeeScalar)
 }

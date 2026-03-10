@@ -31,8 +31,8 @@ import (
 	bls12381 "github.com/consensys/gnark-crypto/ecc/bls12-381"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fp"
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	patched_big "github.com/ethereum/go-bigmodexpfix/src/math/big"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/bitutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
@@ -334,6 +334,8 @@ func init() {
 func activePrecompiledContracts(rules params.Rules) PrecompiledContracts {
 	// note: the order of these switch cases is important
 	switch {
+	case rules.IsTea:
+		return PrecompiledContractsTea
 	case rules.IsOptimismJovian:
 		return PrecompiledContractsJovian
 	case rules.IsOptimismIsthmus:

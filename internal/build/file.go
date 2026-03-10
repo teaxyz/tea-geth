@@ -25,24 +25,17 @@ import (
 	"strings"
 )
 
-// FileExist checks if a file exists at path.
-func FileExist(path string) bool {
-	_, err := os.Stat(path)
-	if err != nil && os.IsNotExist(err) {
-		return false
-	}
-	return true
-}
-
 // HashFolder iterates all files under the given directory, computing the hash
 // of each.
 func HashFolder(folder string, exlude []string) (map[string][32]byte, error) {
 	res := make(map[string][32]byte)
 	err := filepath.WalkDir(folder, func(path string, d os.DirEntry, _ error) error {
 		// Skip anything that's exluded or not a regular file
-		for _, skip := range exlude {
-			if strings.HasPrefix(path, filepath.FromSlash(skip)) {
-				return filepath.SkipDir
+		if d.IsDir() {
+			for _, skip := range exlude {
+				if strings.HasPrefix(path, filepath.FromSlash(skip)) {
+					return filepath.SkipDir
+				}
 			}
 		}
 		if !d.Type().IsRegular() {
